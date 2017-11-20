@@ -1,96 +1,55 @@
 package hu.bme.aut.android.moneyconverter;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.os.Handler;
-import android.support.v4.content.LocalBroadcastManager;
-import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
-import android.view.Menu;
-import android.view.MenuItem;
+import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
-import com.dd.CircularProgressButton;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
+import hu.bme.aut.android.moneyconverter.data.MoneyResult;
+import hu.bme.aut.android.moneyconverter.network.MoneyAPI;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
 
 public class MainActivity extends AppCompatActivity {
-
-    private final String URL_BASE =
-            "http://api.fixer.io/latest?base=USD&symbols=HUF";
-
-    private CircularProgressButton btnGetRate;
-    private TextView tvResult;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        tvResult = (TextView) findViewById(R.id.tvResult);
+        final TextView tvData = findViewById(R.id.tvData);
+        Button btnGet = findViewById(R.id.btnGet);
 
-        btnGetRate = (CircularProgressButton) findViewById(R.id.btnGetRate);
-        btnGetRate.setIndeterminateProgressMode(true);
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl("http://api.fixer.io")
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
 
-        btnGetRate.setOnClickListener(new View.OnClickListener() {
+        final MoneyAPI moneyAPI = retrofit.create(MoneyAPI.class);
+
+        btnGet.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                btnGetRate.setProgress(50);
-                String query = URL_BASE;
-                new HttpGetTask(getApplicationContext()).
-                        execute(query);
+                Call<MoneyResult> call
+                        = moneyAPI.getRatesToUSD("USD");
+
+                call.enqueue(new Callback<MoneyResult>() {
+                    @Override
+                    public void onResponse(Call<MoneyResult> call, Response<MoneyResult> response) {
+                        tvData.setText(""+response.body().getRates().gethUF());
+                    }
+
+                    @Override
+                    public void onFailure(Call<MoneyResult> call, Throwable t) {
+                        tvData.setText(t.getMessage());
+                    }
+                });
             }
         });
     }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        LocalBroadcastManager.getInstance(this).registerReceiver(
-                brWeatherReceiver,
-                new IntentFilter(HttpGetTask.FILTER_RESULT)
-        );
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        LocalBroadcastManager.getInstance(
-                this).unregisterReceiver(brWeatherReceiver);
-    }
-
-    private BroadcastReceiver brWeatherReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String rawResult = intent.getStringExtra(
-                    HttpGetTask.KEY_RESULT);
-
-            try {
-                // TODO: parse JSON here
-
-                tvResult.setText(rawResult);
-            } catch (Exception e) {
-                e.printStackTrace();
-                btnGetRate.setProgress(-1);
-            }
-
-            btnGetRate.setProgress(100);
-
-            final Handler handler = new Handler();
-            handler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    btnGetRate.setProgress(0);
-                }
-            }, 1500);
-        }
-    };
-
-
 }
